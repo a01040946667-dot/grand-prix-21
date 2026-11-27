@@ -597,10 +597,10 @@ function dirtPattern() {
   return dirtPat = ctx.createPattern(c, 'repeat');
 }
 // stylised galloping horse + jockey, facing right, nose at (x, y-ish); s = overall height
-function drawHorse(g, x, y, s, ph, col, coat, num, running) {
+function drawHorse(g, x, y, s, ph, col, coat, num, running, flat) {
   const u = s / 40, k = running ? 1 : 0, sw = Math.sin(ph), dark = shade(coat, -.4);
   g.save(); g.translate(x - 27 * u, y - Math.abs(sw) * 2 * u * k);
-  g.fillStyle = '#00000055'; g.beginPath(); g.ellipse(0, 21 * u + Math.abs(sw) * 2 * u * k, 19 * u, 2.6 * u, 0, 0, 7); g.fill();
+  if (!flat) g.fillStyle = '#00000055', g.beginPath(), g.ellipse(0, 21 * u + Math.abs(sw) * 2 * u * k, 19 * u, 2.6 * u, 0, 0, 7), g.fill();
   g.rotate(sw * .05 * k); g.scale(u, u); g.lineCap = 'round'; g.lineJoin = 'round';
   const leg = (hx, off, front, c) => {
     const a = Math.sin(ph + off) * .75 * k, b = a + (front ? -1 : 1) * Math.max(0, Math.sin(ph + off + 1.2)) * 1.1 * k;
@@ -615,18 +615,46 @@ function drawHorse(g, x, y, s, ph, col, coat, num, running) {
   g.beginPath(); g.moveTo(8, -4); g.lineTo(17, -15); g.lineTo(22, -12); g.lineTo(15, 3); g.closePath(); g.fill();
   g.beginPath(); g.ellipse(22, -12, 6.5, 3.6, .45, 0, 7); g.fill();
   g.beginPath(); g.moveTo(16.5, -16); g.lineTo(18, -20.5); g.lineTo(19.8, -16); g.fill();
-  g.fillStyle = '#ffffff22'; g.beginPath(); g.ellipse(-1, -3, 12, 3, 0, 0, 7); g.fill();
+  if (!flat) { g.fillStyle = '#ffffff22'; g.beginPath(); g.ellipse(-1, -3, 12, 3, 0, 0, 7); g.fill(); }
   g.strokeStyle = '#1c130e'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(9, -6); g.lineTo(17, -16.5); g.stroke();
   g.fillStyle = '#111'; g.beginPath(); g.arc(22, -13.6, .95, 0, 7); g.fill();
   leg(12, 0, true, coat); leg(-9, 2.6, false, coat);
   g.fillStyle = col; g.beginPath(); g.roundRect(-10, -6.5, 13, 10, 2); g.fill();
   g.fillStyle = lum(col) > .62 ? '#14120a' : '#fff'; g.font = '900 7.5px Pretendard'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(num, -3.5, -1.2);
-  g.strokeStyle = '#f3f4f6'; g.lineWidth = 2.8; g.beginPath(); g.moveTo(-2, -8); g.lineTo(3.5, -4.5); g.lineTo(1, -.5); g.stroke();
+  g.strokeStyle = flat ? shade(col, -.45) : '#f3f4f6'; g.lineWidth = 2.8; g.beginPath(); g.moveTo(-2, -8); g.lineTo(3.5, -4.5); g.lineTo(1, -.5); g.stroke();
   g.strokeStyle = col; g.lineWidth = 5.2; g.beginPath(); g.moveTo(-2, -8.5); g.lineTo(5, -15); g.stroke();
   g.lineWidth = 2.2; g.beginPath(); g.moveTo(5, -14); g.lineTo(12.5, -10); g.stroke();
   g.fillStyle = col; g.beginPath(); g.arc(7.2, -18.2, 3.5, 0, 7); g.fill();
   g.fillStyle = '#000a'; g.fillRect(8, -18.8, 3.6, 1.5);
   g.restore();
+}
+// pixel-art sprites: the horse drawing baked into a 62x48 grid (6 gallop frames + standing),
+// alpha snapped to on/off with a 1px dark outline, then scaled up without smoothing. Cached per team colour.
+const SPR = {}, SPR_W = 62, SPR_H = 48, FRAMES = 6, TAU = Math.PI * 2;
+function sprite(col, coat, f) {
+  const key = col + coat + f; if (SPR[key]) return SPR[key];
+  const c = document.createElement('canvas'); c.width = SPR_W; c.height = SPR_H;
+  const g = c.getContext('2d');
+  drawHorse(g, 58, 25, 40, f < 0 ? 0 : f / FRAMES * TAU, col, coat, '', f >= 0, true);
+  const im = g.getImageData(0, 0, SPR_W, SPR_H), d = im.data, on = new Uint8Array(SPR_W * SPR_H);
+  for (let i = 0; i < on.length; i++) on[i] = d[i * 4 + 3] > 110;
+  for (let y = 0; y < SPR_H; y++) for (let x = 0; x < SPR_W; x++) {
+    const i = y * SPR_W + x, o = i * 4;
+    if (on[i]) { d[o + 3] = 255; continue; }
+    const edge = (x && on[i - 1]) || (x < SPR_W - 1 && on[i + 1]) || (y && on[i - SPR_W]) || (y < SPR_H - 1 && on[i + SPR_W]);
+    if (edge) { d[o] = 26; d[o + 1] = 18; d[o + 2] = 12; d[o + 3] = 255; } else d[o + 3] = 0;
+  }
+  g.putImageData(im, 0, 0);
+  return SPR[key] = c;
+}
+// nose lands at (x, y); s = height budget. Integer scale when it fits, so pixels stay square.
+function drawSprite(g, x, y, s, ph, col, coat, running) {
+  const f = running ? Math.floor((ph % TAU + TAU) % TAU / TAU * FRAMES) : -1;
+  let sc = s / 40; if (sc >= 1) sc = Math.floor(sc);
+  const ox = Math.round(x - 59 * sc), oy = Math.round(y - 25 * sc);
+  g.fillStyle = '#0000004d'; g.fillRect(ox + 8 * sc, oy + 45 * sc, 46 * sc, 2 * sc);
+  g.imageSmoothingEnabled = false;
+  g.drawImage(sprite(col, coat, f), ox, oy, SPR_W * sc, SPR_H * sc);
 }
 function draw(t, dt) {
   const W = cv.clientWidth, Hh = cv.clientHeight, hs = H.horses;
@@ -708,7 +736,7 @@ function draw(t, dt) {
         k--;
       }
     }
-    drawHorse(ctx, x, y, s, h.phase, h.color, COATS[h.id % COATS.length], i + 1, running);
+    drawSprite(ctx, x, y, s, h.phase, h.color, COATS[h.id % COATS.length], running);
     if (fev) { ctx.font = `900 ${Math.max(10, laneH * .2)}px Pretendard`; ctx.fillStyle = '#e5b73b'; ctx.textAlign = 'center'; ctx.fillText('FEVER', x - 20 * u, y - laneH * .45); }
     if (h.rank) {
       const r = Math.min(15, laneH * .34), mx = x1 + sq * 2 + 24;
@@ -744,7 +772,7 @@ function heroLoop() {
     for (let i = 1; i < 3; i++) { g.fillStyle = '#ffffff22'; g.fillRect(0, top + i * lane, W, 1); }
     for (const ry of [top - 4, top + lane * 3]) { g.fillStyle = '#eef1ea'; g.fillRect(0, ry, W, 4); for (let px = 6; px < W; px += 40) g.fillRect(px, ry < top ? ry - 6 : ry, 3, 10); }
     const fx = W * .86; for (let y = top, r = 0; y < top + lane * 3; y += 8, r++) for (let k = 0; k < 2; k++) { g.fillStyle = (r + k) % 2 ? '#1b1b1b' : '#eef1ea'; g.fillRect(fx + k * 8, y, 8, 8); }
-    cols.forEach((col, i) => drawHorse(g, W * (.5 + i * .1) + Math.sin(t / 900 + i * 2.1) * W * .05, top + lane * (i + .5), lane * .9, t / 70 + i * 1.7, col, COATS[i * 2], i + 1, true));
+    cols.forEach((col, i) => drawSprite(g, W * (.55 + i * .1) + Math.round(Math.sin(t / 900 + i * 2.1) * W * .05), top + lane * (i + .5), Math.max(80, lane * .9), t / 70 + i * 1.7, col, COATS[i * 2], true));
     requestAnimationFrame(f);
   };
   requestAnimationFrame(f);
