@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Grand Prix 21 · 팀 레이싱</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+:root{--bg:#080d18;--panel:#0f1727;--panel2:#16213a;--line:#24324f;--txt:#f1f5f9;--mut:#8b9ab5;--acc:#2ee59d;--gold:#f5c542;--hot:#fb923c;--live:#ef4444}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:"Noto Sans KR",sans-serif;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+input{font:inherit}
+.disp{font-family:"Black Han Sans","Noto Sans KR",sans-serif;font-weight:400;letter-spacing:.5px}
+.screen{display:none;height:100%}
+.screen.on{display:flex}
+.btn{padding:12px 18px;border-radius:12px;background:#1c2944;border:1px solid var(--line);font-weight:900;transition:transform .1s,filter .2s}
+.btn:hover{filter:brightness(1.2)}.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
+.btn.go{background:linear-gradient(180deg,#3ff0a8,#14b87a);color:#03140c;border:0;box-shadow:0 4px 0 #0b7a50,0 0 28px #2ee59d40}
+.btn.go:active{transform:translateY(3px);box-shadow:0 1px 0 #0b7a50}
+.btn.ghost{background:transparent}
+.pill{padding:4px 10px;border-radius:99px;background:#1c2944;border:1px solid var(--line);font-size:13px;font-weight:700;white-space:nowrap}
+.icon{width:38px;height:38px;border-radius:10px;background:#1c2944;border:1px solid var(--line);font-size:18px}
+
+/* landing */
+#landing{flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center;
+  background:radial-gradient(ellipse 80% 50% at 50% 0,#1e3a8a55,transparent),radial-gradient(ellipse at 50% 120%,#14532d 0,transparent 60%),var(--bg)}
+#landing .kicker{font-size:13px;letter-spacing:6px;color:var(--gold);font-weight:900}
+#heroCv{width:min(520px,90vw);height:150px}
+#landing h1{font-size:clamp(48px,10vw,110px);line-height:.95;text-shadow:0 6px 0 #000a}
+#landing h1 b{color:var(--acc)}
+#landing p{color:var(--mut)}
+.choices{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.choice{width:290px;padding:22px;border-radius:20px;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);text-align:left;box-shadow:0 20px 40px #0006}
+.choice h3{font-size:20px;margin-bottom:6px}.choice p{font-size:13px;margin-bottom:14px}
+.choice .btn{width:100%}
+.codein{display:flex;gap:8px}.codein input{flex:1;min-width:0;padding:12px;border-radius:12px;border:1px solid var(--line);background:#0b1120;color:var(--txt);font-size:20px;text-align:center;letter-spacing:6px}
+.codein .btn{width:auto}
+
+/* host */
+#host{flex-direction:column}
+.topbar{display:flex;align-items:center;gap:12px;padding:8px 16px;background:linear-gradient(180deg,#121c31,#0c1424);border-bottom:2px solid var(--gold)}
+.logo{font-size:22px;white-space:nowrap}.logo b{color:var(--acc)}
+.grow{flex:1}
+.room{font-size:14px;color:var(--mut);white-space:nowrap}.room b{font-size:26px;color:var(--gold);margin-left:6px;letter-spacing:3px}
+.qr-sm{flex:none;width:46px;height:46px;background:#fff;border-radius:6px;padding:3px}.qr-sm svg,.qr-big svg{width:100%;height:100%;display:block}
+.net-bad{color:#f87171}
+.hmain{flex:1;display:flex;min-height:0}
+.trackwrap{flex:1;position:relative;min-width:0}
+#cv{position:absolute;inset:0;width:100%;height:100%}
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;pointer-events:none;color:#d1fae5;text-shadow:0 2px 8px #000}
+#empty .big{font-size:42px}
+#countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#0008;pointer-events:none;z-index:5}
+#countdown span{font-size:min(38vh,320px);line-height:1;text-shadow:0 0 40px #000;animation:pop .9s ease-out}
+@keyframes pop{0%{transform:scale(2.2);opacity:0}25%{transform:scale(1);opacity:1}100%{transform:scale(.85);opacity:.85}}
+#reacts{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:4}
+.fl{position:absolute;bottom:-60px;font-size:44px;text-align:center;animation:floatUp 2.6s ease-out forwards}
+.fl small{display:block;font-size:12px;font-weight:700;background:#000a;border-radius:6px;padding:1px 6px;margin-top:-4px}
+@keyframes floatUp{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:1;transform:translateY(-15vh) scale(1.1)}100%{transform:translateY(-75vh) scale(1);opacity:0}}
+.side{width:320px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.ctrl{display:flex;gap:8px;padding:12px;border-bottom:1px solid var(--line)}
+.ctrl .go{flex:2;font-size:18px}.ctrl #bReset{flex:1}
+.joincard{margin:12px 12px 0;padding:14px;border-radius:14px;background:#0b1120;border:1px dashed #2f4270;text-align:center;font-size:14px;color:var(--mut)}
+.joincard b{color:var(--gold);font-size:22px;letter-spacing:3px}
+.qr-big{width:170px;height:170px;margin:0 auto 10px;background:#fff;border-radius:10px;padding:8px}
+.warn{color:#fca5a5;font-size:12px;margin-top:8px}
+.tabs{display:flex;margin:12px 12px 6px;background:#0b1120;border-radius:10px;padding:3px}
+.tabs button{flex:1;padding:7px;border-radius:8px;font-size:13px;font-weight:700;color:var(--mut)}
+.tabs button.on{background:#1c2944;color:var(--txt)}
+#standings{list-style:none;overflow-y:auto;flex:1;padding:0 12px 12px}
+#standings li{display:flex;align-items:center;gap:9px;padding:7px 10px 7px 8px;border-radius:10px;margin-bottom:5px;background:var(--panel2);font-size:14px;border-left:4px solid var(--c,#334)}
+.nmw{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.pb{display:block;height:4px;border-radius:9px;background:#ffffff12;overflow:hidden}.pb b{display:block;height:100%;border-radius:9px;background:var(--c);transition:width .2s linear}
+#standings li.r1{background:linear-gradient(90deg,#f5c54233,var(--panel2) 70%)}
+.rk{width:24px;height:24px;border-radius:7px;background:#1c2944;display:grid;place-items:center;font-size:12px;font-weight:900;flex:none}
+.r1 .rk{background:var(--gold);color:#000}.r2 .rk{background:#cbd5e1;color:#000}.r3 .rk{background:#fb923c;color:#000}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.vl{font-variant-numeric:tabular-nums;color:var(--mut);font-size:12px}
+.off{opacity:.45}
+.caster{display:flex;align-items:center;gap:12px;padding:0 16px 0 0;background:linear-gradient(90deg,#f5c542 0 6px,#16213a 6px,#0f1727);border-top:1px solid var(--line);min-height:58px}
+.live{align-self:stretch;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;background:#1e293b;font-weight:900;font-size:13px;letter-spacing:2px;color:var(--mut)}
+.live::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor}
+[data-st=RACING] .live,[data-st=COUNTDOWN] .live{background:var(--live);color:#fff}
+[data-st=RACING] .live::before{animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.2}}
+.caster .mic{font-size:22px}
+#cText{font-size:22px;font-weight:900;animation:slideIn .35s ease-out;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@keyframes slideIn{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+
+/* modals */
+.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal.on{display:flex}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:18px;width:100%;max-width:460px;max-height:92vh;overflow-y:auto;padding:22px}
+.sheet.wide{max-width:760px;text-align:center}
+.sheet h2{font-size:22px;margin-bottom:16px}.sheet h3{font-size:15px;margin:18px 0 8px}
+.sheet label.t{display:block;font-size:13px;color:var(--mut);margin:14px 0 6px;font-weight:700}
+.seg{display:flex;background:#0b1120;border-radius:10px;padding:3px}
+.seg button{flex:1;padding:8px 4px;border-radius:8px;font-size:13px;font-weight:700;color:var(--mut)}
+.seg button.on{background:var(--acc);color:#04121f}
+.chk{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:14px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--acc)}
+.addrow{display:flex;gap:6px}.addrow input{flex:1;min-width:0;padding:10px;border-radius:10px;border:1px solid var(--line);background:#0b1120;color:var(--txt)}
+#teamList{list-style:none;margin-top:8px}
+#teamList li{display:flex;align-items:center;gap:8px;padding:7px 8px;border-bottom:1px solid var(--line);font-size:14px}
+#teamList .x{color:#f87171;padding:2px 8px}
+.kbd{font-size:11px;font-weight:900;padding:1px 6px;border-radius:5px;background:#e5edf9;color:#0b1120}
+.sheet .foot{display:flex;gap:8px;margin-top:20px}.sheet .foot .btn{flex:1}
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:10px;margin:10px 0 18px}
+.pod{width:31%;max-width:200px}
+.pod .who{font-weight:900;font-size:18px;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pod .who small{display:block;font-size:12px;color:var(--mut);font-weight:400}
+.pod .blk{border-radius:12px 12px 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:10px;font-size:40px;color:#0b1120}
+.p1 .blk{height:150px;background:linear-gradient(#fde047,#ca8a04)}.p2 .blk{height:110px;background:linear-gradient(#e2e8f0,#94a3b8)}.p3 .blk{height:80px;background:linear-gradient(#fdba74,#c2410c)}
+#resList{list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;text-align:left}
+#resList li{display:flex;gap:8px;align-items:center;padding:6px 10px;background:#0b1120;border-radius:8px;font-size:14px}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:60;width:100%;height:100%}
+
+/* guest */
+#guest{--team:#2ee59d;flex-direction:column;background:radial-gradient(ellipse at 50% -10%,color-mix(in srgb,var(--team) 35%,transparent),transparent 60%),var(--bg);user-select:none;-webkit-user-select:none}
+.g-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px}
+.g-panel{flex:1;display:none;flex-direction:column;align-items:center;padding:12px 20px 20px;gap:14px;min-height:0}
+.g-panel.on{display:flex}
+.spin{width:44px;height:44px;border:5px solid var(--acc);border-top-color:transparent;border-radius:50%;animation:sp 1s linear infinite;margin-top:30vh}
+@keyframes sp{to{transform:rotate(360deg)}}
+#gReg{justify-content:center}
+#gReg h2{font-size:26px;text-align:center}
+#gReg input{width:100%;max-width:340px;padding:16px;border-radius:14px;border:1px solid var(--line);background:#0b1120;color:var(--txt);font-size:20px;text-align:center}
+#gReg .btn{width:100%;max-width:340px;font-size:20px;padding:16px}
+.err{color:#fca5a5;font-size:14px;min-height:20px;text-align:center}
+.g-team{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:900;padding:8px 18px;border-radius:99px;background:var(--panel2);border:2px solid var(--team)}
+.g-team .dot{width:18px;height:18px}
+#gInfo{color:var(--mut);text-align:center;font-size:15px;min-height:44px}
+.g-rank{font-size:64px;line-height:1}.g-rank span{font-size:22px;color:var(--mut)}
+.bar,.fev{width:100%;max-width:420px;height:14px;border-radius:99px;background:#1c2944;overflow:hidden;position:relative}
+.bar i,.fev i{position:absolute;inset:0 auto 0 0;width:0;background:var(--acc);border-radius:99px;transition:width .12s linear}
+.fev{height:22px}.fev i{background:linear-gradient(90deg,#f59e0b,#ef4444)}
+.fev span{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;font-weight:900;letter-spacing:3px}
+.fev.hot{box-shadow:0 0 18px var(--hot);animation:shake .15s infinite}
+@keyframes shake{50%{transform:translateX(2px)}}
+#gTap{flex:1;width:100%;max-width:420px;min-height:180px;border-radius:36px;font-size:60px;color:#fff;text-shadow:0 3px 0 #0007;touch-action:none;
+  background:radial-gradient(circle at 50% 30%,color-mix(in srgb,var(--team) 55%,#fff),var(--team) 55%,color-mix(in srgb,var(--team) 60%,#000));
+  box-shadow:0 10px 0 color-mix(in srgb,var(--team) 45%,#000),0 0 40px color-mix(in srgb,var(--team) 40%,transparent);transition:transform .05s}
+#gTap.press{transform:translateY(7px) scale(.985);box-shadow:0 3px 0 color-mix(in srgb,var(--team) 45%,#000),0 0 60px var(--team)}
+#gTap.fever{background:radial-gradient(circle at 50% 35%,#fde68a,#f97316 60%,#b91c1c);box-shadow:0 10px 0 #7f1d1d,0 0 60px #f97316}
+#gTap.wait{filter:grayscale(.85) brightness(.7)}
+.g-reacts{display:flex;gap:8px}
+.g-reacts button{font-size:28px;width:52px;height:52px;border-radius:14px;background:#1c2944}
+.g-reacts button:active{transform:scale(.9)}
+#gCd{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#000a;font-size:40vw;z-index:20;pointer-events:none}
+@media (max-width:900px){.side{width:260px}.room b{font-size:20px}}
+</style>
+</head>
+<body>
+
+<!-- ============ LANDING ============ -->
+<div id="landing" class="screen">
+  <div class="kicker">TEAM RACING · LIVE</div>
+  <h1 class="disp">GRAND PRIX <b>21</b></h1>
+  <canvas id="heroCv"></canvas>
+  <p>최대 21팀 · 폰으로 연타하는 실시간 팀 레이싱</p>
+  <div class="choices">
+    <div class="choice">
+      <h3>🖥️ 경기장 열기</h3>
+      <p>큰 화면(빔·TV)에 띄우세요. QR이 나오면 팀들이 폰으로 들어옵니다.</p>
+      <button class="btn go" id="bHost">경기장 만들기</button>
+    </div>
+    <div class="choice">
+      <h3>📱 참가하기</h3>
+      <p>화면에 보이는 4자리 참가 코드를 입력하세요.</p>
+      <form class="codein" id="fJoin"><input id="iCode" inputmode="numeric" maxlength="4" placeholder="0000"><button class="btn go">입장</button></form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HOST ============ -->
+<div id="host" class="screen">
+  <header class="topbar">
+    <div class="logo disp">GRAND PRIX <b>21</b></div>
+    <span class="pill" id="hStatus">대기 중</span>
+    <div class="grow"></div>
+    <div class="room">참가 코드<b id="hCode" class="disp">····</b></div>
+    <div class="qr-sm" id="qrSm"></div>
+    <span class="pill" id="hCount">📱 0</span>
+    <button class="icon" id="bSfx" title="소리">🔊</button>
+    <button class="icon" id="bSet" title="설정">⚙️</button>
+  </header>
+  <div class="hmain">
+    <section class="trackwrap">
+      <canvas id="cv"></canvas>
+      <div id="empty"><div class="big">🐎</div><b style="font-size:24px">아직 팀이 없어요</b><span>폰으로 QR을 찍어 팀을 등록하세요<br>폰 없이 하려면 ⚙️ 설정에서 키보드 팀·봇 추가</span></div>
+      <div id="reacts"></div>
+      <div id="countdown"></div>
+    </section>
+    <aside class="side">
+      <div class="ctrl">
+        <button class="btn go disp" id="bStart">START</button>
+        <button class="btn" id="bReset">초기화</button>
+      </div>
+      <div class="joincard" id="joinCard">
+        <div class="qr-big" id="qrBig"></div>
+        폰 카메라로 QR을 찍거나<br>참가 코드 <b id="hCode2">····</b> 입력
+        <div class="warn" id="fileWarn"></div>
+      </div>
+      <div class="tabs"><button class="on" data-tab="live">실시간 순위</button><button data-tab="season">시즌 포인트</button></div>
+      <ol id="standings"></ol>
+    </aside>
+  </div>
+  <footer class="caster"><span class="live">LIVE</span><span class="mic">🎙️</span><span id="cText">팀 등록을 기다리고 있습니다!</span></footer>
+</div>
+
+<!-- settings -->
+<div class="modal" id="mSet"><div class="sheet">
+  <h2>⚙️ 경기 설정</h2>
+  <label class="t">경주 거리</label>
+  <div class="seg" data-opt="dist"><button data-v="short">짧게 · 700m</button><button data-v="normal">보통 · 1000m</button><button data-v="long">길게 · 1500m</button></div>
+  <label class="t">초당 최대 연타 (매크로·오토클릭 방지)</label>
+  <div class="seg" data-opt="cap"><button data-v="8">8회</button><button data-v="12">12회</button><button data-v="16">16회</button></div>
+  <label class="chk"><input type="checkbox" data-opt="fever"> 🔥 피버 타임 — 게이지가 차면 3초간 가속</label>
+  <label class="chk"><input type="checkbox" data-opt="tts"> 🎙️ 캐스터 음성 해설</label>
+  <label class="chk"><input type="checkbox" data-opt="sfx"> 🔊 효과음</label>
+  <h3>팀 관리 (<span id="tCount">0</span>/21)</h3>
+  <form class="addrow" id="fLocal"><input id="iLocal" maxlength="12" placeholder="키보드 팀 이름 (폰 없이 참가)"><button class="btn">추가</button></form>
+  <div class="foot" style="margin-top:8px"><button class="btn" id="bBot">🤖 봇 팀 추가</button><button class="btn" id="bBot5">🤖 ×5</button></div>
+  <ul id="teamList"></ul>
+  <div class="foot"><button class="btn ghost" id="bSeason">시즌 포인트 초기화</button><button class="btn go" data-close>닫기</button></div>
+</div></div>
+
+<!-- results -->
+<div class="modal" id="mRes"><div class="sheet wide">
+  <h2 class="disp" style="font-size:34px">🏆 경주 결과</h2>
+  <div class="podium" id="podium"></div>
+  <ol id="resList"></ol>
+  <div class="foot"><button class="btn ghost" data-close>닫기</button><button class="btn go" id="bNext">다음 경주 ▶</button></div>
+</div></div>
+<canvas id="fx"></canvas>
+
+<!-- ============ GUEST ============ -->
+<div id="guest" class="screen">
+  <div class="g-head"><span class="logo disp">🏁 GP<b>21</b></span><span class="pill" id="gNet">연결 중…</span></div>
+  <div class="g-panel on" id="gConnect"><div class="spin"></div><p id="gConnMsg" style="color:var(--mut)">경기장에 연결하는 중…</p></div>
+  <form class="g-panel" id="gReg">
+    <h2 class="disp">우리 팀 이름은?</h2>
+    <p style="color:var(--mut);text-align:center;font-size:14px">팀당 한 명만 등록하고, 그 폰으로 연타하세요!</p>
+    <input id="gNameIn" maxlength="12" placeholder="팀 이름 (최대 12자)" autocomplete="off">
+    <button class="btn go disp">참가하기</button>
+    <div class="err" id="gErr"></div>
+  </form>
+  <div class="g-panel" id="gPlay">
+    <div class="g-team"><span class="dot" id="gDot"></span><span id="gName"></span></div>
+    <div class="g-rank disp"><b id="gRank">-</b><span id="gOf"></span></div>
+    <div class="bar"><i id="gProg"></i></div>
+    <div class="fev" id="gFevBox"><i id="gFev"></i><span>FEVER</span></div>
+    <div id="gInfo">호스트가 경주를 시작하면<br>아래 버튼을 미친 듯이 연타!</div>
+    <button id="gTap" class="disp wait">TAP!</button>
+    <div class="g-reacts" id="gReacts"></div>
+  </div>
+  <div id="gCd" class="disp"></div>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const COLORS = ['#ef4444','#f97316','#facc15','#84cc16','#22c55e','#14b8a6','#06b6d4','#3b82f6','#6366f1','#a855f7','#d946ef','#ec4899','#f43f5e','#fb923c','#a3e635','#2dd4bf','#38bdf8','#818cf8','#c084fc','#f472b6','#e2e8f0'];
+const KEYS = 'QWERTYUIOPASDFGHJKLZXCVBNM'.split('');
+const POINTS = [25,18,15,12,10,8,6,4,2,1];
+const REACTS = ['👏','🔥','😂','😱','🐎','❤️'];
+const DIST = {short:{f:.7,m:700}, normal:{f:1,m:1000}, long:{f:1.5,m:1500}};
+const IMP = 0.36, BASE = 0.6, LAMBDA = 3, FEVER_MS = 3000, FEVER_MUL = 1.8, TIMEOUT_MS = 25000;
+const PEER_OPTS = {debug:1, config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}]}};
+const PFX = 'gp21-';
+const show = id => document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pick = a => a[Math.random() * a.length | 0];
+const rid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const order = hs => [...hs].sort((a, b) => (a.rank || 99) - (b.rank || 99) || b.progress - a.progress);
+const send = (c, m) => { if (c && c.open) c.send(m); };
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.remove('on'));
+
+/* ================= LANDING ================= */
+const ROOM = new URLSearchParams(location.search).get('room');
+if (ROOM) startGuest(ROOM.replace(/\D/g, ''));
+else {
+  show('landing');
+  heroLoop();
+  $('#bHost').onclick = startHost;
+  $('#fJoin').onsubmit = e => { e.preventDefault(); const c = $('#iCode').value.replace(/\D/g, ''); if (c.length === 4) location.search = '?room=' + c; };
+}
+
+/* ================= HOST ================= */
+let H;
+function startHost() {
+  show('host');
+  H = {
+    peer: null, code: null, conns: new Set(), horses: [], nextId: 1, status: 'IDLE', cd: 0,
+    startAt: 0, firstAt: 0, finished: 0, tab: 'live',
+    opt: Object.assign({dist:'normal', cap:12, fever:true, tts:true, sfx:true}, JSON.parse(localStorage.gp21_opt || '{}')),
+    season: JSON.parse(localStorage.gp21_season || '{}'),
+    parts: [], confetti: [], C: {}, lastNet: 0, lastUi: 0,
+  };
+  const saved = sessionStorage.gp21_code;
+  openPeer(saved || randCode(), saved ? 0 : 99);
+  setupHostUi();
+  resize(); addEventListener('resize', resize);
+  addEventListener('keydown', onKey);
+  let last = performance.now();
+  const loop = t => {
+    const dt = Math.min(.05, Math.max(0, t - last) / 1000); last = t;
+    if (H.status === 'RACING') { step(dt, t); commentTick(t); }
+    draw(t, dt);
+    if (t - H.lastNet > 80 && (H.status === 'RACING' || H.status === 'COUNTDOWN')) { H.lastNet = t; bcastState(); }
+    if (t - H.lastUi > 200) { H.lastUi = t; renderStandings(); }
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+const randCode = () => String(1000 + Math.random() * 9000 | 0);
+
+function openPeer(code, tries) {
+  const p = new Peer(PFX + code, PEER_OPTS);
+  p.on('open', () => {
+    H.peer = p; H.code = code; sessionStorage.gp21_code = code;
+    $('#hCount').classList.remove('net-bad'); renderInvite();
+  });
+  p.on('error', e => {
+    console.warn('peer', e.type, e);
+    if (e.type === 'unavailable-id') { p.destroy(); setTimeout(() => openPeer(tries < 3 ? code : randCode(), tries + 1), 1500); }
+    else if (['network','server-error','socket-error','socket-closed'].includes(e.type)) $('#hCount').classList.add('net-bad');
+  });
+  p.on('disconnected', () => { $('#hCount').classList.add('net-bad'); setTimeout(() => { if (!p.destroyed) p.reconnect(); }, 1500); });
+  p.on('connection', conn => {
+    conn.on('open', () => { H.conns.add(conn); send(conn, rosterMsg()); send(conn, stateMsg()); updCount(); });
+    conn.on('data', d => onGuestMsg(conn, d));
+    const bye = () => {
+      H.conns.delete(conn);
+      const h = conn.horse;
+      if (h && h.conn === conn) { h.conn = null; h.online = false; rosterChanged(); }
+      updCount();
+    };
+    conn.on('close', bye); conn.on('error', bye);
+  });
+}
+
+function inviteUrl() { return location.origin + location.pathname + '?room=' + H.code; }
+function renderInvite() {
+  $('#hCode').textContent = $('#hCode2').textContent = H.code;
+  const qr = qrcode(0, 'M'); qr.addData(inviteUrl()); qr.make();
+  $('#qrSm').innerHTML = $('#qrBig').innerHTML = qr.createSvgTag({cellSize: 4, margin: 0, scalable: true});
+  $('#fileWarn').textContent = location.protocol === 'file:' ? '⚠️ 지금은 내 PC 파일로 열려 있어서 폰이 QR로 못 들어와요. 웹에 올린 주소로 여세요.' : '';
+}
+const updCount = () => $('#hCount').textContent = '📱 ' + H.horses.filter(h => h.conn).length + ' / 접속 ' + H.conns.size;
+
+function onGuestMsg(conn, d) {
+  if (!d || typeof d !== 'object') return;
+  if (d.t === 'hello') {
+    conn.token = String(d.token || '').slice(0, 40);
+    const h = conn.token && H.horses.find(h => h.token === conn.token);
+    if (h) bind(h, conn);
+    else if (d.name) register(conn, d.name);
+    else send(conn, {t: 'you', id: null});
+  } else if (d.t === 'reg') {
+    if (!conn.horse) register(conn, d.name);
+  } else if (d.t === 'tap') {
+    if (conn.horse) tap(conn.horse, Math.min(50, d.n | 0));
+  } else if (d.t === 'react') {
+    const now = performance.now();
+    if (REACTS.includes(d.e) && now - (conn.lastReact || 0) > 350) { conn.lastReact = now; floatReact(d.e, conn.horse); }
+  }
+}
+
+function register(conn, name) {
+  name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 12);
+  const err = msg => send(conn, {t: 'err', msg});
+  if (!name) return err('팀 이름을 입력하세요');
+  if (H.status === 'COUNTDOWN' || H.status === 'RACING') return err('경주 중이에요. 이번 경주가 끝나면 다시 눌러 주세요!');
+  if (H.horses.length >= 21) return err('정원(21팀)이 다 찼어요');
+  if (H.horses.some(h => h.name === name)) return err('이미 있는 팀 이름이에요');
+  bind(addHorse(name, {token: conn.token}), conn);
+}
+function bind(h, conn) {
+  if (h.conn && h.conn !== conn) h.conn.horse = null;
+  h.conn = conn; h.online = true; conn.horse = h;
+  send(conn, {t: 'you', id: h.id, name: h.name});
+  rosterChanged();
+}
+function addHorse(name, extra) {
+  const used = new Set(H.horses.map(h => h.color));
+  const h = Object.assign({id: H.nextId++, name, color: COLORS.find(c => !used.has(c)) || pick(COLORS), token: null, key: null, bot: false, conn: null, online: true}, extra);
+  resetHorse(h); H.horses.push(h); rosterChanged(); return h;
+}
+function resetHorse(h) {
+  Object.assign(h, {progress: 0, rank: null, vel: 0, speed: 0, fever: 0, feverUntil: 0, bucket: H.opt.cap, time: null, pts: 0,
+    base: .9 + Math.random() * .2, phase: Math.random() * 6, botAcc: 0, botRate: 6.5 + Math.random() * 4, taps: 0});
+}
+function removeHorse(h) {
+  if (h.conn) { send(h.conn, {t: 'you', id: null, kicked: true}); h.conn.horse = null; }
+  H.horses = H.horses.filter(x => x !== h); rosterChanged();
+}
+function rosterMsg() { return {t: 'roster', teams: H.horses.map(h => ({id: h.id, name: h.name, color: h.color}))}; }
+function stateMsg() {
+  const now = performance.now();
+  return {t: 's', st: H.status, cd: H.cd, h: H.horses.map(h => [h.id, Math.round(h.progress * 10), h.rank || 0, Math.round(h.fever), now < h.feverUntil ? 1 : 0, h.time ? Math.round(h.time * 10) : 0])};
+}
+const bcast = m => H.conns.forEach(c => send(c, m));
+const bcastState = () => bcast(stateMsg());
+function rosterChanged() {
+  bcast(rosterMsg()); bcastState(); updCount(); renderTeamList(); renderStandings();
+  $('#empty').style.display = H.horses.length ? 'none' : 'flex';
+  if (H.status === 'IDLE' && H.horses.length) say(pick([`${H.horses.length}개 팀 입장! 준비되면 START!`, `현재 ${H.horses.length}팀 대기 중. 더 들어오세요!`]), false);
+}
+
+/* ---- physics ---- */
+function tap(h, n) {
+  if (H.status !== 'RACING' || h.rank || n <= 0) return;
+  const acc = Math.min(n, Math.floor(h.bucket));
+  if (acc <= 0) return;
+  h.bucket -= acc; h.taps += acc;
+  const now = performance.now(), fev = now < h.feverUntil;
+  h.vel += acc * IMP / DIST[H.opt.dist].f * LAMBDA * (fev ? FEVER_MUL : 1);
+  if (H.opt.fever && !fev) {
+    h.fever = Math.min(100, h.fever + acc);
+    if (h.fever >= 100) {
+      h.feverUntil = now + FEVER_MS;
+      sfx('fever');
+      if (now - (H.C.fevAt || 0) > 2500) { H.C.fevAt = now; say(pick([`${h.name} 피버 타임! 🔥`, `🔥 ${h.name}, 불이 붙었습니다!`, `${h.name} 폭주 모드 돌입!`]), false); }
+    }
+  }
+}
+function step(dt, now) {
+  const f = DIST[H.opt.dist].f, cap = H.opt.cap;
+  for (const h of H.horses) {
+    if (h.rank) continue;
+    if (h.bot) { h.botAcc += dt * h.botRate * (.7 + Math.random() * .6); const n = h.botAcc | 0; if (n) { h.botAcc -= n; tap(h, n); } }
+    else if (!h.online) h.vel *= .9;
+    h.bucket = Math.min(cap, h.bucket + cap * dt);
+    h.vel *= Math.exp(-LAMBDA * dt);
+    h.speed = BASE / f * h.base + h.vel;
+    h.progress += h.speed * dt;
+    h.phase += dt * (5 + h.speed * 2.2);
+    if (now < h.feverUntil) h.fever = 100 * (h.feverUntil - now) / FEVER_MS;
+    else { if (h.feverUntil) { h.feverUntil = 0; h.fever = 0; } h.fever = Math.max(0, h.fever - 2 * dt); }
+    if (h.progress >= 100) {
+      h.progress = 100; h.rank = ++H.finished; h.time = (now - H.startAt) / 1000; h.feverUntil = 0;
+      onFinish(h, now);
+    }
+  }
+  if (H.horses.every(h => h.rank) || (H.firstAt && now - H.firstAt > TIMEOUT_MS)) endRace();
+}
+function onFinish(h, now) {
+  if (h.rank === 1) {
+    H.firstAt = now; sfx('win');
+    say(`${h.name} 1위로 골인!!! 기록 ${h.time.toFixed(1)}초!`, true);
+  } else if (h.rank === 2 && now - H.firstAt < 600) {
+    say(`간발의 차! ${h.name} 2위! 사진 판독급 접전입니다!`, true);
+  } else sfx('ding');
+}
+function endRace() {
+  for (const h of order(H.horses)) if (!h.rank) h.rank = ++H.finished;
+  setStatus('FINISHED');
+  for (const h of H.horses) { h.pts = POINTS[h.rank - 1] || 0; if (!h.bot) H.season[h.name] = (H.season[h.name] || 0) + h.pts; }
+  localStorage.gp21_season = JSON.stringify(H.season);
+  bcastState(); showResults(); burstConfetti();
+}
+
+/* ---- flow ---- */
+function setStatus(s) {
+  H.status = s; document.body.dataset.st = s;
+  $('#hStatus').textContent = {IDLE:'대기 중', COUNTDOWN:'카운트다운', RACING:'🔴 경주 중', FINISHED:'경주 종료'}[s];
+  $('#bStart').disabled = s !== 'IDLE';
+  $('#bReset').textContent = s === 'RACING' ? '중단' : s === 'FINISHED' ? '다음 경주' : '초기화';
+  $('#bReset').disabled = s === 'COUNTDOWN';
+  $('#joinCard').style.display = s === 'IDLE' ? '' : 'none';
+  bcastState();
+}
+function startRace() {
+  if (H.status !== 'IDLE' || !H.horses.length) return;
+  ac();
+  H.horses.forEach(resetHorse); H.finished = 0; H.firstAt = 0; H.C = {};
+  H.cd = 3; setStatus('COUNTDOWN'); showCd(3);
+  say(`${H.horses.length}개 팀, 출발선에 섰습니다!`, true);
+  const tick = () => {
+    if (H.status !== 'COUNTDOWN') return;
+    H.cd--;
+    if (H.cd > 0) { showCd(H.cd); bcastState(); setTimeout(tick, 1000); }
+    else { showCd(0); H.startAt = performance.now(); setStatus('RACING'); say('출발!!! 연타하세요!', false); setTimeout(() => showCd(null), 700); }
+  };
+  setTimeout(tick, 1000);
+}
+function resetRace() {
+  if (H.status === 'COUNTDOWN') return;
+  H.horses.forEach(resetHorse); H.finished = 0; H.firstAt = 0;
+  $('#mRes').classList.remove('on'); setStatus('IDLE');
+  say('다음 경주를 준비합니다. 새 팀도 지금 등록하세요!', false);
+}
+function showCd(n) {
+  const el = $('#countdown');
+  if (n === null) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = `<span class="disp" style="color:${['#22e39a','#facc15','#fb923c','#ef4444'][n]}">${n || 'GO!'}</span>`;
+  sfx(n ? 'beep' : 'go');
+}
+
+/* ---- commentary ---- */
+function say(txt, voice) {
+  const el = $('#cText'); el.textContent = txt; el.style.animation = 'none'; el.offsetWidth; el.style.animation = '';
+  if (voice && H.opt.tts && window.speechSynthesis) {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(txt.replace(/[^\p{L}\p{N}\s!?.,]/gu, ''));
+    u.lang = 'ko-KR'; u.rate = 1.2; speechSynthesis.speak(u);
+  }
+}
+function commentTick(now) {
+  const C = H.C, o = order(H.horses), a = o[0], b = o[1];
+  if (!a || a.rank) return;
+  if (a.id !== C.leader && a.progress > 4 && now - (C.leaderAt || 0) > 3000) {
+    const first = C.leader === undefined; C.leader = a.id; C.leaderAt = now;
+    say(first ? `${a.name}, 가장 먼저 치고 나갑니다!` : pick([`${a.name} 선두 탈환!`, `${a.name}, 앞으로 나섭니다!`, `역전! ${a.name} 1위!`]), !(window.speechSynthesis && speechSynthesis.speaking));
+  }
+  if (!C.half && a.progress >= 50) { C.half = 1; say(`반환점 통과! 선두는 ${a.name}!`, true); }
+  if (!C.fin && a.progress >= 80) {
+    C.fin = 1;
+    say(b && a.progress - b.progress < 4 ? `마지막 직선! ${a.name}, ${b.name} 대접전!` : `마지막 직선! ${a.name} 독주 체제!`, true);
+  }
+}
+
+/* ---- sound ---- */
+let AC;
+function ac() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); AC.resume(); } catch (e) {} return AC; }
+function tone(f, d, type = 'square', v = .12, when = 0, f2) {
+  const a = AC; if (!a || !H.opt.sfx) return;
+  const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + when;
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + .02);
+}
+function sfx(k) {
+  if (k === 'beep') tone(440, .2);
+  if (k === 'go') tone(880, .5);
+  if (k === 'ding') tone(1320, .25, 'triangle', .1);
+  if (k === 'fever') tone(300, .35, 'sawtooth', .06, 0, 1200);
+  if (k === 'win') { [523, 659, 784, 1047].forEach((f, i) => tone(f, .18, 'square', .1, i * .12)); [523, 659, 784].forEach(f => tone(f, 1, 'triangle', .08, .5)); }
+}
+
+/* ---- input ---- */
+function onKey(e) {
+  if (e.target.tagName === 'INPUT' || e.repeat) return;   // repeat = holding the key, not tapping
+  const h = H.horses.find(h => h.key && h.key === e.key.toUpperCase());
+  if (h) { e.preventDefault(); tap(h, 1); }
+}
+
+/* ---- render ---- */
+const cv = $('#cv'), ctx = cv.getContext('2d'), fx = $('#fx'), fctx = fx.getContext('2d');
+function resize() {
+  const dpr = devicePixelRatio || 1;
+  for (const c of [cv, fx]) { c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr; c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0); }
+}
+const COATS = ['#7a4a2a', '#9a5a2c', '#3a2a22', '#a39a90', '#5c3a24', '#c08a55'];
+function shade(hex, a) {
+  const n = parseInt(hex.slice(1), 16), f = v => Math.max(0, Math.min(255, Math.round(v * (1 + a))));
+  return `rgb(${f(n >> 16)},${f(n >> 8 & 255)},${f(n & 255)})`;
+}
+const lum = hex => { const n = parseInt(hex.slice(1), 16); return (.3 * (n >> 16) + .59 * (n >> 8 & 255) + .11 * (n & 255)) / 255; };
+let dirtPat;
+function dirtPattern() {
+  if (dirtPat) return dirtPat;
+  const c = document.createElement('canvas'); c.width = c.height = 96; const g = c.getContext('2d');
+  g.fillStyle = '#87582f'; g.fillRect(0, 0, 96, 96);
+  for (let i = 0; i < 420; i++) { g.fillStyle = Math.random() < .5 ? '#ffffff12' : '#0000001c'; g.fillRect(Math.random() * 96, Math.random() * 96, 1 + Math.random() * 2, 1 + Math.random() * 2); }
+  return dirtPat = ctx.createPattern(c, 'repeat');
+}
+// stylised galloping horse + jockey, facing right, nose at (x, y-ish); s = overall height
+function drawHorse(g, x, y, s, ph, col, coat, num, running) {
+  const u = s / 40, k = running ? 1 : 0, sw = Math.sin(ph), dark = shade(coat, -.4);
+  g.save(); g.translate(x - 27 * u, y - Math.abs(sw) * 2 * u * k);
+  g.fillStyle = '#00000055'; g.beginPath(); g.ellipse(0, 21 * u + Math.abs(sw) * 2 * u * k, 19 * u, 2.6 * u, 0, 0, 7); g.fill();
+  g.rotate(sw * .05 * k); g.scale(u, u); g.lineCap = 'round'; g.lineJoin = 'round';
+  const leg = (hx, off, front, c) => {
+    const a = Math.sin(ph + off) * .75 * k, b = a + (front ? -1 : 1) * Math.max(0, Math.sin(ph + off + 1.2)) * 1.1 * k;
+    const kx = hx + Math.sin(a) * 9, ky = 3 + Math.cos(a) * 9, fx = kx + Math.sin(b) * 9, fy = ky + Math.cos(b) * 9;
+    g.strokeStyle = c; g.lineWidth = 3.4; g.beginPath(); g.moveTo(hx, 1); g.lineTo(kx, ky); g.lineTo(fx, fy); g.stroke();
+    g.fillStyle = '#17100c'; g.beginPath(); g.arc(fx, fy, 1.9, 0, 7); g.fill();
+  };
+  leg(10, 1.3, true, dark); leg(-11, 3.9, false, dark);
+  g.strokeStyle = '#1c130e'; g.lineWidth = 3.6; g.beginPath(); g.moveTo(-14, -3); g.quadraticCurveTo(-22, -5, -26, 2 + sw * 3 * k); g.stroke();
+  g.fillStyle = coat;
+  g.beginPath(); g.ellipse(0, 0, 16, 7.5, 0, 0, 7); g.fill();
+  g.beginPath(); g.moveTo(8, -4); g.lineTo(17, -15); g.lineTo(22, -12); g.lineTo(15, 3); g.closePath(); g.fill();
+  g.beginPath(); g.ellipse(22, -12, 6.5, 3.6, .45, 0, 7); g.fill();
+  g.beginPath(); g.moveTo(16.5, -16); g.lineTo(18, -20.5); g.lineTo(19.8, -16); g.fill();
+  g.fillStyle = '#ffffff22'; g.beginPath(); g.ellipse(-1, -3, 12, 3, 0, 0, 7); g.fill();
+  g.strokeStyle = '#1c130e'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(9, -6); g.lineTo(17, -16.5); g.stroke();
+  g.fillStyle = '#111'; g.beginPath(); g.arc(22, -13.6, .95, 0, 7); g.fill();
+  leg(12, 0, true, coat); leg(-9, 2.6, false, coat);
+  g.fillStyle = col; g.beginPath(); g.roundRect(-10, -6.5, 13, 10, 2); g.fill();
+  g.fillStyle = lum(col) > .62 ? '#0a0f1a' : '#fff'; g.font = '900 7.5px "Noto Sans KR"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(num, -3.5, -1.2);
+  g.strokeStyle = '#f3f4f6'; g.lineWidth = 2.8; g.beginPath(); g.moveTo(-2, -8); g.lineTo(3.5, -4.5); g.lineTo(1, -.5); g.stroke();
+  g.strokeStyle = col; g.lineWidth = 5.2; g.beginPath(); g.moveTo(-2, -8.5); g.lineTo(5, -15); g.stroke();
+  g.lineWidth = 2.2; g.beginPath(); g.moveTo(5, -14); g.lineTo(12.5, -10); g.stroke();
+  g.fillStyle = col; g.beginPath(); g.arc(7.2, -18.2, 3.5, 0, 7); g.fill();
+  g.fillStyle = '#000a'; g.fillRect(8, -18.8, 3.6, 1.5);
+  g.restore();
+}
+function draw(t, dt) {
+  const W = cv.clientWidth, Hh = cv.clientHeight, hs = H.horses;
+  const n = Math.max(hs.length, 6), laneH = Math.min(84, (Hh - 60) / n), trackH = laneH * n;
+  const top = Math.max(40, (Hh - trackH) / 2 + 8);
+  const labelW = Math.min(210, W * .19), x0 = labelW + 26, x1 = W - 64, tw = x1 - x0;
+  // infield grass with mowing stripes
+  ctx.fillStyle = '#123b27'; ctx.fillRect(0, 0, W, Hh);
+  for (let x = 0; x < W; x += 90) { ctx.fillStyle = '#ffffff07'; ctx.fillRect(x, 0, 45, Hh); }
+  // dirt track + lane lines
+  ctx.fillStyle = dirtPattern(); ctx.fillRect(0, top, W, trackH);
+  const leader = H.status === 'RACING' ? order(hs)[0] : null;
+  for (let i = 0; i < n; i++) {
+    if (i % 2) { ctx.fillStyle = '#00000014'; ctx.fillRect(0, top + i * laneH, W, laneH); }
+    if (leader && hs[i] === leader) { ctx.fillStyle = '#f5c5421c'; ctx.fillRect(x0, top + i * laneH, tw, laneH); }
+    if (i) { ctx.fillStyle = '#ffffff1f'; ctx.fillRect(x0, top + i * laneH, tw, 1); }
+  }
+  // rails
+  for (const ry of [top - 4, top + trackH]) {
+    ctx.fillStyle = '#0005'; ctx.fillRect(0, ry + 4, W, 2);
+    ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, ry, W, 4);
+    for (let px = 8; px < W; px += 44) ctx.fillRect(px, ry < top ? ry - 6 : ry, 3, 10);
+  }
+  // distance poles + labels
+  ctx.font = '900 11px "Noto Sans KR"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const m = DIST[H.opt.dist].m;
+  for (let k = 0; k <= 10; k++) {
+    const x = x0 + tw * k / 10;
+    if (k && k < 10) {
+      ctx.fillStyle = '#ffffff0d'; ctx.fillRect(x, top, 1, trackH);
+      for (let s = 0; s < 4; s++) { ctx.fillStyle = s % 2 ? '#ef4444' : '#fff'; ctx.fillRect(x - 2, top - 22 + s * 4, 4, 4); }
+    }
+    if (k && k < 10 && tw < 600 && k % 2) continue;   // narrow screen: label every 20%
+    ctx.fillStyle = k === 10 ? '#f5c542' : k ? '#cbd5e1' : '#fff';
+    ctx.fillText(k === 10 ? 'FINISH' : k ? (m * k / 10) + 'm' : 'START', x, top - 30);
+  }
+  // start line, label panel
+  ctx.fillStyle = '#ffffffcc'; ctx.fillRect(x0 - 2, top, 3, trackH);
+  ctx.fillStyle = '#080d18d9'; ctx.fillRect(0, top, labelW + 8, trackH);
+  // checkered finish with glow
+  const sq = Math.max(6, Math.min(9, laneH / 6));
+  ctx.shadowColor = '#f5c542'; ctx.shadowBlur = 18; ctx.fillStyle = '#fff'; ctx.fillRect(x1, top, sq * 2, trackH); ctx.shadowBlur = 0;
+  for (let y = top, r = 0; y < top + trackH; y += sq, r++) { ctx.fillStyle = '#111'; ctx.fillRect(x1 + (r % 2) * sq, y, sq, Math.min(sq, top + trackH - y)); }
+  // lanes
+  hs.forEach((h, i) => {
+    const y = top + i * laneH + laneH / 2, x = x0 + tw * Math.min(100, h.progress) / 100;
+    const fev = H.status === 'RACING' && t < h.feverUntil, running = H.status === 'RACING' && !h.rank;
+    const s = laneH * .86, u = s / 40;
+    // label: saddle-cloth number + name + tag
+    ctx.globalAlpha = h.online ? 1 : .45;
+    const bh = Math.min(26, laneH * .62);
+    ctx.fillStyle = h.color; ctx.beginPath(); ctx.roundRect(10, y - bh / 2, bh * 1.1, bh, 5); ctx.fill();
+    ctx.fillStyle = lum(h.color) > .62 ? '#0a0f1a' : '#fff'; ctx.font = `900 ${bh * .55}px "Noto Sans KR"`; ctx.textAlign = 'center'; ctx.fillText(i + 1, 10 + bh * .55, y + 1);
+    const nx = 18 + bh * 1.1;
+    ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = `900 ${Math.min(18, laneH * .36)}px "Noto Sans KR"`;
+    const tagW = labelW > 140 ? 30 : 0;
+    ctx.fillText(fit(h.name, labelW - nx - tagW), nx, y + 1);
+    if (tagW) {
+    ctx.font = `900 ${Math.min(12, laneH * .28)}px "Noto Sans KR"`; ctx.textAlign = 'right';
+    ctx.fillStyle = h.key ? '#f5c542' : '#ffffff99';
+    ctx.fillText(h.key ? h.key : h.bot ? 'BOT' : h.online ? '📱' : '⚠️', labelW, y + 1);
+    }
+    ctx.globalAlpha = 1;
+    // hoof-track ribbon
+    if (h.progress > 0) {
+      const g = ctx.createLinearGradient(x0, 0, x, 0); g.addColorStop(0, h.color + '00'); g.addColorStop(1, h.color + '99');
+      ctx.fillStyle = g; ctx.fillRect(x0, y + 17 * u, Math.max(0, x - x0 - 40 * u), Math.max(3, laneH * .08));
+    }
+    if (fev) {
+      const r = s * 1.1, gx = x - 26 * u, g = ctx.createRadialGradient(gx, y, 2, gx, y, r);
+      g.addColorStop(0, '#fb923cbb'); g.addColorStop(1, '#fb923c00'); ctx.fillStyle = g; ctx.fillRect(gx - r, y - r, r * 2, r * 2);
+    }
+    if (running) {
+      let k = h.speed * dt * (fev ? 9 : 4);
+      while (k > 0 && H.parts.length < 500) {
+        if (Math.random() < k) H.parts.push({x: x - 45 * u, y: y + 17 * u + (Math.random() - .5) * 4 * u, vx: -30 - Math.random() * 60, vy: -10 - Math.random() * 25, life: .6, max: .6, c: fev ? pick(['#fde047', '#fb923c', '#ef4444']) : pick(['#c79a6b', '#a8784a', '#e2c29b']), r: fev ? 4 : 3});
+        k--;
+      }
+    }
+    drawHorse(ctx, x, y, s, h.phase, h.color, COATS[h.id % COATS.length], i + 1, running);
+    if (fev) { ctx.font = `900 ${Math.max(10, laneH * .2)}px "Noto Sans KR"`; ctx.fillStyle = '#fde047'; ctx.textAlign = 'center'; ctx.fillText('🔥FEVER', x - 20 * u, y - laneH * .45); }
+    if (h.rank) {
+      const r = Math.min(15, laneH * .34), mx = x1 + sq * 2 + 24;
+      ctx.fillStyle = ['#f5c542', '#cbd5e1', '#fb923c'][h.rank - 1] || '#1e293b';
+      ctx.beginPath(); ctx.arc(mx, y, r, 0, 7); ctx.fill();
+      ctx.fillStyle = h.rank <= 3 ? '#0a0f1a' : '#fff'; ctx.font = `900 ${r}px "Noto Sans KR"`; ctx.textAlign = 'center'; ctx.fillText(h.rank, mx, y + 1);
+    }
+  });
+  // particles
+  H.parts = H.parts.filter(p => (p.life -= dt) > 0);
+  for (const p of H.parts) { p.x += p.vx * dt; p.y += p.vy * dt; ctx.globalAlpha = p.life / p.max; ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.r, p.r); }
+  ctx.globalAlpha = 1;
+  // confetti
+  fctx.clearRect(0, 0, fx.clientWidth, fx.clientHeight);
+  H.confetti = H.confetti.filter(p => (p.life -= dt) > 0);
+  for (const p of H.confetti) {
+    p.vy += 300 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.a += p.va * dt;
+    fctx.save(); fctx.translate(p.x, p.y); fctx.rotate(p.a); fctx.fillStyle = p.c; fctx.globalAlpha = Math.min(1, p.life); fctx.fillRect(-5, -3, 10, 6); fctx.restore();
+  }
+}
+// landing: three horses galloping in place
+function heroLoop() {
+  const c = $('#heroCv'), g = c.getContext('2d'), dpr = devicePixelRatio || 1;
+  c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr; g.scale(dpr, dpr);
+  const W = c.clientWidth, Hh = c.clientHeight, cols = ['#ef4444', '#2ee59d', '#3b82f6'];
+  const f = t => {
+    if (!$('#landing').classList.contains('on')) return;
+    g.clearRect(0, 0, W, Hh);
+    g.fillStyle = '#87582f55'; g.fillRect(0, Hh - 22, W, 22);
+    g.fillStyle = '#f8fafc88'; g.fillRect(0, Hh - 24, W, 2);
+    cols.forEach((col, i) => drawHorse(g, W * (.38 + i * .2) + Math.sin(t / 700 + i * 2) * 14, Hh - 50 - (2 - i) * 6, 70 + i * 6, t / 75 + i * 1.7, col, COATS[i * 2], i + 1, true));
+    requestAnimationFrame(f);
+  };
+  requestAnimationFrame(f);
+}
+const fitCache = {};
+function fit(s, w) {
+  const k = s + '|' + (w | 0) + ctx.font; if (fitCache[k]) return fitCache[k];
+  let r = s; while (r.length > 1 && ctx.measureText(r + '…').width > w) r = r.slice(0, -1);
+  return fitCache[k] = ctx.measureText(s).width <= w ? s : r + '…';
+}
+function burstConfetti() {
+  const W = fx.clientWidth;
+  for (let i = 0; i < 220; i++) H.confetti.push({x: W / 2 + (Math.random() - .5) * W * .4, y: fx.clientHeight * .35, vx: (Math.random() - .5) * 900, vy: -300 - Math.random() * 600, a: 0, va: (Math.random() - .5) * 12, life: 3 + Math.random() * 2, c: pick(COLORS)});
+}
+function floatReact(e, h) {
+  const box = $('#reacts'); if (box.childElementCount > 40) return;
+  const el = document.createElement('div'); el.className = 'fl';
+  el.style.left = (5 + Math.random() * 85) + '%';
+  el.innerHTML = esc(e) + (h ? `<small style="color:${h.color}">${esc(h.name)}</small>` : '');
+  box.appendChild(el); setTimeout(() => el.remove(), 2700);
+}
+
+/* ---- host DOM ---- */
+function setupHostUi() {
+  $('#bStart').onclick = startRace;
+  $('#bReset').onclick = resetRace;
+  $('#bNext').onclick = resetRace;
+  $('#bSet').onclick = () => { renderTeamList(); syncOpts(); $('#mSet').classList.add('on'); };
+  $('#bSfx').onclick = () => { H.opt.sfx = H.opt.tts = !(H.opt.sfx || H.opt.tts); saveOpt(); ac(); };
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+    H.tab = b.dataset.tab; document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b)); renderStandings();
+  });
+  document.querySelectorAll('.seg').forEach(sg => sg.onclick = e => {
+    const v = e.target.dataset.v; if (!v) return;
+    H.opt[sg.dataset.opt] = isNaN(v) ? v : +v; saveOpt();
+  });
+  document.querySelectorAll('.chk input').forEach(c => c.onchange = () => { H.opt[c.dataset.opt] = c.checked; saveOpt(); });
+  $('#fLocal').onsubmit = e => {
+    e.preventDefault();
+    const name = $('#iLocal').value.trim().slice(0, 12), used = new Set(H.horses.map(h => h.key));
+    if (!name || H.horses.length >= 21 || H.horses.some(h => h.name === name)) return;
+    addHorse(name, {key: KEYS.find(k => !used.has(k))}); $('#iLocal').value = '';
+  };
+  const addBots = k => { for (let i = 0; i < k && H.horses.length < 21; i++) { let nm; do nm = '봇 ' + pick('가나다라마바사아자차카타파하'.split('')) + (Math.random() * 90 + 10 | 0); while (H.horses.some(h => h.name === nm)); addHorse(nm, {bot: true}); } };
+  $('#bBot').onclick = () => addBots(1);
+  $('#bBot5').onclick = () => addBots(5);
+  $('#teamList').onclick = e => { const id = +e.target.dataset.rm; const h = H.horses.find(h => h.id === id); if (h && confirm(`'${h.name}' 팀을 뺄까요?`)) removeHorse(h); };
+  $('#bSeason').onclick = () => { if (confirm('시즌 포인트를 모두 0으로 초기화할까요?')) { H.season = {}; localStorage.gp21_season = '{}'; renderStandings(); } };
+  setStatus('IDLE'); syncOpts(); renderStandings();
+}
+function saveOpt() { localStorage.gp21_opt = JSON.stringify(H.opt); syncOpts(); }
+function syncOpts() {
+  document.querySelectorAll('.seg').forEach(sg => sg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(H.opt[sg.dataset.opt]) === b.dataset.v)));
+  document.querySelectorAll('.chk input').forEach(c => c.checked = !!H.opt[c.dataset.opt]);
+  $('#bSfx').textContent = H.opt.sfx || H.opt.tts ? '🔊' : '🔇';
+}
+function renderTeamList() {
+  $('#tCount').textContent = H.horses.length;
+  $('#teamList').innerHTML = H.horses.map(h => `<li class="${h.online ? '' : 'off'}"><span class="dot" style="background:${h.color}"></span><span class="nm">${esc(h.name)}</span>${h.key ? `<span class="kbd">${h.key}</span>` : h.bot ? '🤖' : h.online ? '📱' : '⚠️ 끊김'}<button class="x" data-rm="${h.id}">✕</button></li>`).join('') || '<li style="color:var(--mut)">아직 팀이 없어요</li>';
+}
+function renderStandings() {
+  const el = $('#standings');
+  if (H.tab === 'season') {
+    const rows = Object.entries(H.season).sort((a, b) => b[1] - a[1]);
+    el.innerHTML = rows.map(([n, p], i) => `<li class="r${i + 1}"><span class="rk">${i + 1}</span><span class="nm">${esc(n)}</span><span class="vl">${p} pt</span></li>`).join('') || '<li style="color:var(--mut)">경주가 끝나면 포인트가 쌓여요 (1위 25pt…)</li>';
+    return;
+  }
+  el.innerHTML = order(H.horses).map((h, i) => `<li class="r${i + 1} ${h.online ? '' : 'off'}" style="--c:${h.color}"><span class="rk">${h.rank || i + 1}</span><div class="nmw"><span class="nm">${esc(h.name)}</span><i class="pb"><b style="width:${h.progress}%"></b></i></div><span class="vl">${h.time ? '🏁 ' + h.time.toFixed(1) + 's' : H.status === 'IDLE' ? (h.key ? h.key : h.bot ? '🤖' : '📱') : Math.floor(h.progress) + '%'}</span></li>`).join('');
+}
+function showResults() {
+  const o = order(H.horses), pod = [o[1], o[0], o[2]];
+  $('#podium').innerHTML = pod.map((h, i) => h ? `<div class="pod p${[2, 1, 3][i]}"><div class="who" style="color:${h.color}">${esc(h.name)}<small>${h.time ? h.time.toFixed(2) + '초' : '-'} · +${h.pts}pt</small></div><div class="blk disp">${[2, 1, 3][i]}</div></div>` : '<div class="pod"></div>').join('');
+  $('#resList').innerHTML = o.slice(3).map(h => `<li><span class="rk">${h.rank}</span><span class="dot" style="background:${h.color}"></span><span class="nm">${esc(h.name)}</span><span class="vl">${h.time ? h.time.toFixed(1) + 's' : Math.floor(h.progress) + '%'}${h.pts ? ' · +' + h.pts : ''}</span></li>`).join('');
+  setTimeout(() => $('#mRes').classList.add('on'), 1200);
+}
+
+/* ================= GUEST ================= */
+function startGuest(code) {
+  show('guest');
+  const G = {conn: null, myId: null, teams: {}, st: 'IDLE', cd: 0, pending: 0, retry: null, lastReact: 0, hs: []};
+  const token = localStorage.gp21_token || (localStorage.gp21_token = rid());
+  const panel = id => document.querySelectorAll('.g-panel').forEach(p => p.classList.toggle('on', p.id === id));
+  const net = (txt, ok) => { $('#gNet').textContent = txt; $('#gNet').style.color = ok ? 'var(--acc)' : '#fca5a5'; };
+  if (code.length !== 4) { $('#gConnMsg').textContent = '참가 코드가 올바르지 않아요.'; return; }
+  const peer = new Peer(PEER_OPTS);
+  const again = () => { clearTimeout(G.retry); G.retry = setTimeout(connect, 2500); };
+  peer.on('open', connect);
+  peer.on('disconnected', () => setTimeout(() => !peer.destroyed && peer.reconnect(), 1500));
+  peer.on('error', e => {
+    console.warn('peer', e.type, e);
+    if (e.type === 'peer-unavailable') { net('방 없음', false); if (G.myId == null) $('#gConnMsg').textContent = `코드 ${code} 경기장을 찾는 중… (코드를 확인하세요)`; again(); }
+    else net('연결 문제', false);
+  });
+  function connect() {
+    if (G.conn && G.conn.open) return;
+    const c = peer.connect(PFX + code, {reliable: true}); G.conn = c;
+    c.on('open', () => { net('● 연결됨', true); send(c, {t: 'hello', token, name: localStorage.gp21_name || ''}); });
+    c.on('data', onMsg);
+    c.on('close', () => { if (G.conn === c) { net('재연결 중…', false); again(); } });
+  }
+  function onMsg(d) {
+    if (d.t === 'you') {
+      G.myId = d.id;
+      if (d.id == null) {
+        if (d.kicked) localStorage.removeItem('gp21_name');
+        $('#gNameIn').value = $('#gNameIn').value || localStorage.gp21_name || ''; panel('gReg');
+      } else { localStorage.gp21_name = d.name; panel('gPlay'); }
+      render();
+    } else if (d.t === 'err') { $('#gErr').textContent = d.msg; panel('gReg'); }
+    else if (d.t === 'roster') { G.teams = {}; d.teams.forEach(t => G.teams[t.id] = t); render(); }
+    else if (d.t === 's') {
+      const prevSt = G.st, prevCd = G.cd;
+      G.st = d.st; G.cd = d.cd;
+      G.hs = d.h.map(([id, p, rank, fever, fon, time]) => ({id, progress: p / 10, rank: rank || null, fever, fon, time: time / 10}));
+      const cd = $('#gCd');
+      if (G.st === 'COUNTDOWN' && (prevSt !== 'COUNTDOWN' || prevCd !== G.cd)) { cd.style.display = 'flex'; cd.textContent = G.cd; navigator.vibrate?.(60); }
+      else if (G.st === 'RACING' && prevSt === 'COUNTDOWN') { cd.textContent = 'GO!'; navigator.vibrate?.([80, 40, 80]); setTimeout(() => cd.style.display = 'none', 600); }
+      else if (G.st !== 'COUNTDOWN' && G.st !== 'RACING') cd.style.display = 'none';
+      if (G.st === 'FINISHED' && prevSt === 'RACING') navigator.vibrate?.(300);
+      render();
+    }
+  }
+  function render() {
+    const me = G.teams[G.myId]; if (!me) return;
+    $('#gName').textContent = me.name; $('#gDot').style.background = me.color; $('#guest').style.setProperty('--team', me.color);
+    const o = order(G.hs), i = o.findIndex(h => h.id === G.myId), h = o[i];
+    const n = Object.keys(G.teams).length;
+    $('#gOf').textContent = ' / ' + n;
+    const btn = $('#gTap');
+    btn.classList.toggle('wait', G.st !== 'RACING' || !!(h && h.rank));
+    btn.classList.toggle('fever', !!(h && h.fon));
+    $('#gFevBox').classList.toggle('hot', !!(h && h.fon));
+    if (!h || G.st === 'IDLE') {
+      $('#gRank').textContent = '-'; $('#gProg').style.width = '0'; $('#gFev').style.width = '0';
+      $('#gInfo').innerHTML = `대기 중 · 현재 ${n}팀<br>호스트가 시작하면 아래 버튼을 연타!`;
+      return;
+    }
+    $('#gRank').textContent = (h.rank || i + 1) + '위';
+    $('#gProg').style.width = h.progress + '%';
+    $('#gFev').style.width = h.fever + '%';
+    if (G.st === 'COUNTDOWN') $('#gInfo').textContent = '곧 출발! 손가락 준비…';
+    else if (h.rank && h.time) $('#gInfo').innerHTML = `🏁 <b>${h.rank}위</b> 골인! 기록 ${h.time.toFixed(1)}초`;
+    else if (G.st === 'FINISHED') $('#gInfo').innerHTML = `경주 종료 · 최종 <b>${h.rank || i + 1}위</b>`;
+    else if (h.fon) $('#gInfo').textContent = '🔥 피버 타임! 지금 더 세게!';
+    else { const lead = o[0]; $('#gInfo').textContent = i === 0 ? '선두! 계속 달려!' : `1위(${G.teams[lead.id]?.name || ''})와 ${(lead.progress - h.progress).toFixed(1)}% 차이`; }
+  }
+  // tapping: every finger down counts; batched to host every 60ms
+  const btn = $('#gTap');
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    btn.classList.add('press'); setTimeout(() => btn.classList.remove('press'), 60);
+    if (G.st === 'RACING' && G.myId != null) { G.pending++; navigator.vibrate?.(8); }
+  });
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+  setInterval(() => { if (G.pending && G.conn) { send(G.conn, {t: 'tap', n: G.pending}); G.pending = 0; } }, 60);
+  $('#gReg').onsubmit = e => {
+    e.preventDefault();
+    const name = $('#gNameIn').value.trim(); if (!name) return;
+    $('#gErr').textContent = ''; send(G.conn, {t: 'reg', name});
+  };
+  $('#gReacts').innerHTML = REACTS.map(r => `<button type="button">${r}</button>`).join('');
+  $('#gReacts').onclick = e => {
+    const r = e.target.textContent; if (!REACTS.includes(r) || Date.now() - G.lastReact < 400) return;
+    G.lastReact = Date.now(); send(G.conn, {t: 'react', e: r});
+  };
+}
+</script>
+</body>
+</html>
