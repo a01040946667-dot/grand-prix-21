@@ -170,6 +170,7 @@ input{font:inherit}
 .fev.hot i{background:var(--live)}
 #gInfo{color:var(--mut);font-size:15px;line-height:1.5;min-height:46px}
 #gInfo b{color:var(--txt)}
+#gInfo.alert{color:#ef8a80;font-weight:800}
 #gTap{flex:1;min-height:200px;border-radius:var(--r);font-size:56px;font-weight:900;letter-spacing:-.02em;color:#fff;background:var(--team);box-shadow:inset 0 -8px 0 #0000002e;touch-action:none;transition:transform .05s}
 #gTap.lt{color:#14120a}
 #gTap.press{transform:translateY(3px) scale(.99);box-shadow:inset 0 -3px 0 #0000002e}
@@ -246,6 +247,7 @@ input{font:inherit}
   <label class="chk"><input type="checkbox" data-opt="fever"> 피버 타임: 게이지가 차면 3초간 가속</label>
   <label class="chk"><input type="checkbox" data-opt="tts"> 캐스터 음성 해설</label>
   <label class="chk"><input type="checkbox" data-opt="sfx"> 효과음</label>
+  <label class="chk"><input type="checkbox" data-opt="anti"> 매크로 자동 실격 (한 번 경고 후 실격)</label>
   <h3>팀 관리 (<span id="tCount">0</span>/21)</h3>
   <form class="addrow" id="fLocal"><input class="field" id="iLocal" maxlength="12" placeholder="키보드 팀 이름" aria-label="키보드 팀 이름"><button class="btn">추가</button></form>
   <div class="foot" style="margin-top:8px"><button class="btn" id="bBot">봇 1팀 추가</button><button class="btn" id="bBot5">봇 5팀 추가</button></div>
@@ -299,7 +301,8 @@ const show = id => document.querySelectorAll('.screen').forEach(s => s.classList
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pick = a => a[Math.random() * a.length | 0];
 const rid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
-const order = hs => [...hs].sort((a, b) => (a.rank || 99) - (b.rank || 99) || b.progress - a.progress);
+const rkey = h => h.dq ? 100 : h.rank || 99;
+const order = hs => [...hs].sort((a, b) => rkey(a) - rkey(b) || b.progress - a.progress);
 const send = (c, m) => { if (c && c.open) c.send(m); };
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.modal').classList.remove('on'));
 
@@ -320,7 +323,7 @@ function startHost() {
   H = {
     peer: null, code: null, conns: new Set(), horses: [], nextId: 1, status: 'IDLE', cd: 0,
     startAt: 0, firstAt: 0, finished: 0, tab: 'live',
-    opt: Object.assign({dist:'normal', cap:12, fever:true, tts:true, sfx:true}, JSON.parse(localStorage.gp21_opt || '{}')),
+    opt: Object.assign({dist:'normal', cap:12, fever:true, tts:true, sfx:true, anti:true}, JSON.parse(localStorage.gp21_opt || '{}')),
     season: JSON.parse(localStorage.gp21_season || '{}'),
     parts: [], confetti: [], C: {}, lastNet: 0, lastUi: 0,
   };
@@ -389,7 +392,7 @@ function onGuestMsg(conn, d) {
   } else if (d.t === 'reg') {
     if (!conn.horse) register(conn, d.name);
   } else if (d.t === 'tap') {
-    if (conn.horse) tap(conn.horse, Math.min(50, d.n | 0));
+    if (conn.horse) tap(conn.horse, Math.min(50, d.n | 0), Array.isArray(d.iv) ? d.iv.slice(0, 60).map(Number) : null);
   } else if (d.t === 'react') {
     const now = performance.now();
     if (REACTS.includes(d.e) && now - (conn.lastReact || 0) > 350) { conn.lastReact = now; floatReact(d.e, conn.horse); }
@@ -418,7 +421,8 @@ function addHorse(name, extra) {
 }
 function resetHorse(h) {
   Object.assign(h, {progress: 0, rank: null, vel: 0, speed: 0, fever: 0, feverUntil: 0, bucket: H.opt.cap, time: null, pts: 0,
-    base: .9 + Math.random() * .2, phase: Math.random() * 6, botAcc: 0, botRate: 6.5 + Math.random() * 4, taps: 0});
+    base: .9 + Math.random() * .2, phase: Math.random() * 6, botAcc: 0, botRate: 6.5 + Math.random() * 4, taps: 0,
+    dq: false, strikes: 0, strikeAt: 0, iv: [], rl: [], lastKey: 0});
 }
 function removeHorse(h) {
   if (h.conn) { send(h.conn, {t: 'you', id: null, kicked: true}); h.conn.horse = null; }
@@ -427,7 +431,7 @@ function removeHorse(h) {
 function rosterMsg() { return {t: 'roster', teams: H.horses.map(h => ({id: h.id, name: h.name, color: h.color}))}; }
 function stateMsg() {
   const now = performance.now();
-  return {t: 's', st: H.status, cd: H.cd, h: H.horses.map(h => [h.id, Math.round(h.progress * 10), h.rank || 0, Math.round(h.fever), now < h.feverUntil ? 1 : 0, h.time ? Math.round(h.time * 10) : 0])};
+  return {t: 's', st: H.status, cd: H.cd, h: H.horses.map(h => [h.id, Math.round(h.progress * 10), h.rank || 0, Math.round(h.fever), now < h.feverUntil ? 1 : 0, h.time ? Math.round(h.time * 10) : 0, h.dq ? 1 : 0])};
 }
 const bcast = m => H.conns.forEach(c => send(c, m));
 const bcastState = () => bcast(stateMsg());
@@ -438,8 +442,50 @@ function rosterChanged() {
 }
 
 /* ---- physics ---- */
-function tap(h, n) {
-  if (H.status !== 'RACING' || h.rank || n <= 0) return;
+/* ---- macro / autoclicker detection ----
+   ponytail: heuristics only. A phone autoclicker with randomised timing under 20 taps/s gets through,
+   and a modified client could lie about intervals; the host-side rate limit (opt.cap) still bounds any gain. */
+const MACRO_RATE = 20, MACRO_CV = .06;
+// rate = taps/s over the last 2s, iv = recent tap intervals in ms. Returns why it looks automated, or null.
+function macroReason(rate, iv) {
+  if (rate > MACRO_RATE) return '사람 손으로 어려운 속도';
+  if (iv.length >= 30) {
+    const m = iv.reduce((a, b) => a + b, 0) / iv.length;
+    const sd = Math.sqrt(iv.reduce((a, b) => a + (b - m) ** 2, 0) / iv.length);
+    if (m < 150 && sd / m < MACRO_CV) return '기계처럼 일정한 간격';
+  }
+  return null;
+}
+function checkMacro(h, n, iv) {
+  const now = performance.now();
+  h.rl.push([now, n]); while (now - h.rl[0][0] > 2000) h.rl.shift();
+  if (iv) { h.iv.push(...iv.filter(v => v > 0 && v < 1000)); if (h.iv.length > 40) h.iv.splice(0, h.iv.length - 40); }
+  const rate = now - H.startAt > 2000 ? h.rl.reduce((a, r) => a + r[1], 0) / 2 : 0;
+  const why = macroReason(rate, h.iv);
+  if (!why || now - h.strikeAt < 3000) return;
+  h.strikeAt = now; h.iv = []; h.rl = [];
+  if (++h.strikes === 1) {
+    send(h.conn, {t: 'warn', msg: `매크로 의심 경고: ${why}. 한 번 더 걸리면 실격이에요.`});
+    say(`${h.name}, 매크로 의심 경고!`, false);
+  } else {
+    h.dq = true; h.vel = 0; h.feverUntil = 0; h.fever = 0;
+    send(h.conn, {t: 'dq', msg: why}); bcastState();
+    say(`${h.name}, 매크로 의심으로 실격 처리됩니다!`, true);
+  }
+}
+if (location.hash === '#selftest') {
+  const human = () => Array.from({length: 40}, () => 105 + (Math.random() - .5) * 70);
+  console.assert(macroReason(0, Array(40).fill(50)) === '기계처럼 일정한 간격', 'fixed 50ms should be flagged');
+  console.assert(macroReason(0, Array.from({length: 40}, (_, i) => 50 + (i % 2))) !== null, 'near-fixed should be flagged');
+  console.assert(macroReason(9, human()) === null, 'human tapping must pass');
+  console.assert(macroReason(25, []) === '사람 손으로 어려운 속도', '25 taps/s should be flagged');
+  console.assert(macroReason(16, human()) === null, '16 taps/s with jitter must pass');
+  console.log('macro selftest done');
+}
+
+function tap(h, n, iv) {
+  if (H.status !== 'RACING' || h.rank || h.dq || n <= 0) return;
+  if (H.opt.anti && !h.bot) { checkMacro(h, n, iv); if (h.dq) return; }
   const acc = Math.min(n, Math.floor(h.bucket));
   if (acc <= 0) return;
   h.bucket -= acc; h.taps += acc;
@@ -457,7 +503,7 @@ function tap(h, n) {
 function step(dt, now) {
   const f = DIST[H.opt.dist].f, cap = H.opt.cap;
   for (const h of H.horses) {
-    if (h.rank) continue;
+    if (h.rank || h.dq) continue;
     if (h.bot) { h.botAcc += dt * h.botRate * (.7 + Math.random() * .6); const n = h.botAcc | 0; if (n) { h.botAcc -= n; tap(h, n); } }
     else if (!h.online) h.vel *= .9;
     h.bucket = Math.min(cap, h.bucket + cap * dt);
@@ -472,7 +518,7 @@ function step(dt, now) {
       onFinish(h, now);
     }
   }
-  if (H.horses.every(h => h.rank) || (H.firstAt && now - H.firstAt > TIMEOUT_MS)) endRace();
+  if (H.horses.every(h => h.rank || h.dq) || (H.firstAt && now - H.firstAt > TIMEOUT_MS)) endRace();
 }
 function onFinish(h, now) {
   if (h.rank === 1) {
@@ -483,9 +529,10 @@ function onFinish(h, now) {
   } else sfx('ding');
 }
 function endRace() {
-  for (const h of order(H.horses)) if (!h.rank) h.rank = ++H.finished;
+  for (const h of order(H.horses)) if (!h.rank && !h.dq) h.rank = ++H.finished;
+  for (const h of order(H.horses)) if (h.dq) h.rank = ++H.finished;
   setStatus('FINISHED');
-  for (const h of H.horses) { h.pts = POINTS[h.rank - 1] || 0; if (!h.bot) H.season[h.name] = (H.season[h.name] || 0) + h.pts; }
+  for (const h of H.horses) { h.pts = h.dq ? 0 : POINTS[h.rank - 1] || 0; if (!h.bot) H.season[h.name] = (H.season[h.name] || 0) + h.pts; }
   localStorage.gp21_season = JSON.stringify(H.season);
   bcastState(); showResults(); burstConfetti();
 }
@@ -573,7 +620,7 @@ function sfx(k) {
 function onKey(e) {
   if (e.target.tagName === 'INPUT' || e.repeat) return;   // repeat = holding the key, not tapping
   const h = H.horses.find(h => h.key && h.key === e.key.toUpperCase());
-  if (h) { e.preventDefault(); tap(h, 1); }
+  if (h) { e.preventDefault(); tap(h, 1, h.lastKey ? [e.timeStamp - h.lastKey] : null); h.lastKey = e.timeStamp; }
 }
 
 /* ---- render ---- */
@@ -703,10 +750,10 @@ function draw(t, dt) {
   // lanes
   hs.forEach((h, i) => {
     const y = top + i * laneH + laneH / 2, x = x0 + tw * Math.min(100, h.progress) / 100;
-    const fev = H.status === 'RACING' && t < h.feverUntil, running = H.status === 'RACING' && !h.rank;
+    const fev = H.status === 'RACING' && t < h.feverUntil, running = H.status === 'RACING' && !h.rank && !h.dq;
     const s = laneH * .86, u = s / 40;
     // label: saddle-cloth number + name + tag
-    ctx.globalAlpha = h.online ? 1 : .45;
+    ctx.globalAlpha = h.online && !h.dq ? 1 : .45;
     const bh = Math.min(38, laneH * .5);
     ctx.fillStyle = h.color; ctx.beginPath(); ctx.roundRect(10, y - bh / 2, bh * 1.1, bh, 5); ctx.fill();
     ctx.fillStyle = lum(h.color) > .62 ? '#14120a' : '#fff'; ctx.font = `900 ${bh * .55}px Pretendard`; ctx.textAlign = 'center'; ctx.fillText(i + 1, 10 + bh * .55, y + 1);
@@ -716,8 +763,8 @@ function draw(t, dt) {
     ctx.fillText(fit(h.name, labelW - nx - tagW), nx, y + 1);
     if (tagW) {
     ctx.font = `900 ${Math.min(12, laneH * .28)}px Pretendard`; ctx.textAlign = 'right';
-    ctx.fillStyle = h.key ? '#e5b73b' : '#ffffff99';
-    ctx.fillText(h.key ? h.key : h.bot ? '봇' : h.online ? '폰' : '끊김', labelW, y + 1);
+    ctx.fillStyle = h.dq ? '#ef8a80' : h.key ? '#e5b73b' : '#ffffff99';
+    ctx.fillText(h.dq ? '실격' : h.key ? h.key : h.bot ? '봇' : h.online ? '폰' : '끊김', labelW, y + 1);
     }
     ctx.globalAlpha = 1;
     // hoof-track ribbon
@@ -736,9 +783,11 @@ function draw(t, dt) {
         k--;
       }
     }
+    if (h.dq) ctx.globalAlpha = .35;
     drawSprite(ctx, x, y, s, h.phase, h.color, COATS[h.id % COATS.length], running);
+    ctx.globalAlpha = 1;
     if (fev) { ctx.font = `900 ${Math.max(10, laneH * .2)}px Pretendard`; ctx.fillStyle = '#e5b73b'; ctx.textAlign = 'center'; ctx.fillText('FEVER', x - 20 * u, y - laneH * .45); }
-    if (h.rank) {
+    if (h.rank && !h.dq) {
       const r = Math.min(15, laneH * .34), mx = x1 + sq * 2 + 24;
       ctx.fillStyle = ['#e5b73b', '#b9c0bb', '#b8774a'][h.rank - 1] || '#1b2420';
       ctx.beginPath(); ctx.arc(mx, y, r, 0, 7); ctx.fill();
@@ -840,19 +889,19 @@ function renderStandings() {
     el.innerHTML = rows.map(([n, p], i) => `<li class="r${i + 1}"><span class="rk">${i + 1}</span><span class="sw"></span><span class="nm">${esc(n)}</span><span class="vl">${p} pt</span></li>`).join('') || '<li style="color:var(--mut)">경주가 끝나면 포인트가 쌓여요 (1위 25pt…)</li>';
     return;
   }
-  el.innerHTML = order(H.horses).map((h, i) => `<li class="r${i + 1} ${h.online ? '' : 'off'}" style="--c:${h.color}"><span class="rk">${h.rank || i + 1}</span><span class="sw"></span><div class="nmw"><span class="nm">${esc(h.name)}</span><i class="pb"><b style="width:${h.progress}%"></b></i></div><span class="vl">${h.time ? h.time.toFixed(1) + '초' : H.status === 'IDLE' ? (h.key ? h.key : h.bot ? '봇' : '폰') : Math.floor(h.progress) + '%'}</span></li>`).join('');
+  el.innerHTML = order(H.horses).map((h, i) => `<li class="r${i + 1} ${h.online ? '' : 'off'}" style="--c:${h.color}"><span class="rk">${h.dq ? '-' : h.rank || i + 1}</span><span class="sw"></span><div class="nmw"><span class="nm">${esc(h.name)}</span><i class="pb"><b style="width:${h.progress}%"></b></i></div><span class="vl">${h.dq ? '실격' : h.time ? h.time.toFixed(1) + '초' : H.status === 'IDLE' ? (h.key ? h.key : h.bot ? '봇' : '폰') : Math.floor(h.progress) + '%'}</span></li>`).join('');
 }
 function showResults() {
-  const o = order(H.horses), pod = [o[1], o[0], o[2]];
-  $('#podium').innerHTML = pod.map((h, i) => h ? `<div class="pod p${[2, 1, 3][i]}"><div class="who" style="color:${h.color}">${esc(h.name)}<small class="num">${h.time ? h.time.toFixed(2) + '초' : '기록 없음'}, +${h.pts}pt</small></div><div class="blk">${[2, 1, 3][i]}</div></div>` : '<div class="pod"></div>').join('');
-  $('#resList').innerHTML = o.slice(3).map(h => `<li><span class="rk">${h.rank}</span><span class="dot" style="background:${h.color}"></span><span class="nm">${esc(h.name)}</span><span class="vl">${h.time ? h.time.toFixed(1) + '초' : Math.floor(h.progress) + '%'}${h.pts ? ', +' + h.pts + 'pt' : ''}</span></li>`).join('');
+  const o = order(H.horses), ok = o.filter(h => !h.dq), pod = [ok[1], ok[0], ok[2]];
+  $('#podium').innerHTML = pod.map((h, i) => h ? `<div class="pod p${[2, 1, 3][i]}"><div class="who" style="color:${h.color}">${esc(h.name)}<small class="num">${h.dq ? '실격' : (h.time ? h.time.toFixed(2) + '초' : '기록 없음') + ', +' + h.pts + 'pt'}</small></div><div class="blk">${[2, 1, 3][i]}</div></div>` : '<div class="pod"></div>').join('');
+  $('#resList').innerHTML = o.filter(h => !pod.includes(h)).map(h => `<li><span class="rk">${h.dq ? '-' : h.rank}</span><span class="dot" style="background:${h.color}"></span><span class="nm">${esc(h.name)}</span><span class="vl">${h.dq ? '실격' : h.time ? h.time.toFixed(1) + '초' : Math.floor(h.progress) + '%'}${h.pts ? ', +' + h.pts + 'pt' : ''}</span></li>`).join('');
   setTimeout(() => $('#mRes').classList.add('on'), 1200);
 }
 
 /* ================= GUEST ================= */
 function startGuest(code) {
   show('guest');
-  const G = {conn: null, myId: null, teams: {}, st: 'IDLE', cd: 0, pending: 0, retry: null, lastReact: 0, hs: []};
+  const G = {conn: null, myId: null, teams: {}, st: 'IDLE', cd: 0, pending: 0, retry: null, lastReact: 0, hs: [], iv: [], lastTap: 0, warn: '', warnUntil: 0, dqWhy: ''};
   const token = localStorage.gp21_token || (localStorage.gp21_token = rid());
   const panel = id => document.querySelectorAll('.g-panel').forEach(p => p.classList.toggle('on', p.id === id));
   const net = (txt, ok) => { $('#gNet').textContent = txt; $('#gNet').style.color = ok ? 'var(--acc)' : '#fca5a5'; };
@@ -882,11 +931,14 @@ function startGuest(code) {
       } else { localStorage.gp21_name = d.name; panel('gPlay'); }
       render();
     } else if (d.t === 'err') { $('#gErr').textContent = d.msg; panel('gReg'); }
+    else if (d.t === 'warn') { G.warn = d.msg; G.warnUntil = Date.now() + 5000; navigator.vibrate?.([200, 100, 200]); render(); setTimeout(render, 5100); }
+    else if (d.t === 'dq') { G.dqWhy = d.msg; navigator.vibrate?.(600); render(); }
     else if (d.t === 'roster') { G.teams = {}; d.teams.forEach(t => G.teams[t.id] = t); render(); }
     else if (d.t === 's') {
       const prevSt = G.st, prevCd = G.cd;
       G.st = d.st; G.cd = d.cd;
-      G.hs = d.h.map(([id, p, rank, fever, fon, time]) => ({id, progress: p / 10, rank: rank || null, fever, fon, time: time / 10}));
+      G.hs = d.h.map(([id, p, rank, fever, fon, time, dq]) => ({id, progress: p / 10, rank: rank || null, fever, fon, time: time / 10, dq: !!dq}));
+      if (G.st === 'COUNTDOWN') { G.dqWhy = ''; G.warnUntil = 0; G.lastTap = 0; G.iv = []; }
       const cd = $('#gCd');
       if (G.st === 'COUNTDOWN' && (prevSt !== 'COUNTDOWN' || prevCd !== G.cd)) { cd.style.display = 'flex'; cd.textContent = G.cd; navigator.vibrate?.(60); }
       else if (G.st === 'RACING' && prevSt === 'COUNTDOWN') { cd.textContent = 'GO'; navigator.vibrate?.([80, 40, 80]); setTimeout(() => cd.style.display = 'none', 600); }
@@ -898,11 +950,12 @@ function startGuest(code) {
   function render() {
     const me = G.teams[G.myId]; if (!me) return;
     $('#gName').textContent = me.name; $('#guest').style.setProperty('--team', me.color); $('#gTap').classList.toggle('lt', lum(me.color) > .62);
-    const o = order(G.hs), i = o.findIndex(h => h.id === G.myId), h = o[i];
+    const o = order(G.hs.map(x => x.id === G.myId && G.dqWhy ? {...x, dq: true} : x)), i = o.findIndex(h => h.id === G.myId), h = o[i];
     const n = Object.keys(G.teams).length;
     $('#gOf').textContent = ' / ' + n;
     const btn = $('#gTap');
-    btn.classList.toggle('wait', G.st !== 'RACING' || !!(h && h.rank));
+    btn.classList.toggle('wait', G.st !== 'RACING' || !!(h && (h.rank || h.dq)));
+    $('#gInfo').classList.remove('alert');
     btn.classList.toggle('fever', !!(h && h.fon));
     $('#gFevBox').classList.toggle('hot', !!(h && h.fon));
     if (!h || G.st === 'IDLE') {
@@ -910,7 +963,9 @@ function startGuest(code) {
       $('#gInfo').innerHTML = `지금 ${n}팀이 기다리는 중이에요.<br>경주가 시작되면 아래 버튼을 연타하세요.`;
       return;
     }
-    $('#gRank').textContent = (h.rank || i + 1) + '위'; $('#gRank').parentNode.classList.remove('idle');
+    $('#gRank').textContent = h.dq ? '실격' : (h.rank || i + 1) + '위'; $('#gRank').parentNode.classList.remove('idle');
+    if (h.dq) { $('#gInfo').classList.add('alert'); $('#gInfo').textContent = `매크로 의심으로 실격됐어요 (${G.dqWhy || '자동 감지'}). 다음 경주부터 다시 참가할 수 있어요.`; return; }
+    if (G.st === 'RACING' && Date.now() < G.warnUntil) { $('#gInfo').classList.add('alert'); $('#gInfo').textContent = G.warn; return; }
     $('#gProg').style.width = h.progress + '%';
     $('#gFev').style.width = h.fever + '%';
     if (G.st === 'COUNTDOWN') $('#gInfo').textContent = '곧 출발합니다. 손가락 준비!';
@@ -924,10 +979,14 @@ function startGuest(code) {
   btn.addEventListener('pointerdown', e => {
     e.preventDefault();
     btn.classList.add('press'); setTimeout(() => btn.classList.remove('press'), 60);
-    if (G.st === 'RACING' && G.myId != null) { G.pending++; navigator.vibrate?.(8); }
+    if (G.st === 'RACING' && G.myId != null) {
+      G.pending++; navigator.vibrate?.(8);
+      if (G.lastTap) G.iv.push(Math.round(e.timeStamp - G.lastTap));
+      G.lastTap = e.timeStamp;
+    }
   });
   btn.addEventListener('contextmenu', e => e.preventDefault());
-  setInterval(() => { if (G.pending && G.conn) { send(G.conn, {t: 'tap', n: G.pending}); G.pending = 0; } }, 60);
+  setInterval(() => { if (G.pending && G.conn) { send(G.conn, {t: 'tap', n: G.pending, iv: G.iv.splice(0)}); G.pending = 0; } }, 60);
   $('#gReg').onsubmit = e => {
     e.preventDefault();
     const name = $('#gNameIn').value.trim(); if (!name) return;
